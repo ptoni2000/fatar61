@@ -76,6 +76,38 @@ void Error_Handler(void);
 #define D6_GPIO_Port GPIOA
 #define D7_Pin GPIO_PIN_7
 #define D7_GPIO_Port GPIOA
+#define PR1_Pin GPIO_PIN_0
+#define PR1_GPIO_Port GPIOB
+#define PR2_Pin GPIO_PIN_1
+#define PR2_GPIO_Port GPIOB
+#define PR3_Pin GPIO_PIN_2
+#define PR3_GPIO_Port GPIOB
+#define RI3_Pin GPIO_PIN_10
+#define RI3_GPIO_Port GPIOB
+#define RI4_Pin GPIO_PIN_11
+#define RI4_GPIO_Port GPIOB
+#define RI5_Pin GPIO_PIN_12
+#define RI5_GPIO_Port GPIOB
+#define RI6_Pin GPIO_PIN_13
+#define RI6_GPIO_Port GPIOB
+#define RI7_Pin GPIO_PIN_14
+#define RI7_GPIO_Port GPIOB
+#define RI8_Pin GPIO_PIN_15
+#define RI8_GPIO_Port GPIOB
+#define PR4_Pin GPIO_PIN_3
+#define PR4_GPIO_Port GPIOB
+#define PR5_Pin GPIO_PIN_4
+#define PR5_GPIO_Port GPIOB
+#define PR6_Pin GPIO_PIN_5
+#define PR6_GPIO_Port GPIOB
+#define PR7_Pin GPIO_PIN_6
+#define PR7_GPIO_Port GPIOB
+#define PR8_Pin GPIO_PIN_7
+#define PR8_GPIO_Port GPIOB
+#define RI1_Pin GPIO_PIN_8
+#define RI1_GPIO_Port GPIOB
+#define RI2_Pin GPIO_PIN_9
+#define RI2_GPIO_Port GPIOB
 /* USER CODE BEGIN Private defines */
 
 /* USER CODE END Private defines */

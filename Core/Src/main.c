@@ -22,7 +22,9 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-
+#include "startup.h"
+#include "Sound/usb_device.h"
+#include "Sound/usbd_midi_if.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -85,7 +87,7 @@ int main(void)
   SystemClock_Config();
 
   /* USER CODE BEGIN SysInit */
-
+  initialize();
   /* USER CODE END SysInit */
 
   /* Initialize all configured peripherals */
@@ -94,12 +96,18 @@ int main(void)
   MX_USB_PCD_Init();
   /* USER CODE BEGIN 2 */
 
+  // USB MIDI
+  HAL_NVIC_SetPriority(USB_LP_CAN1_RX0_IRQn, 2, 0);
+  HAL_NVIC_EnableIRQ(USB_LP_CAN1_RX0_IRQn);
+  MX_USB_DEVICE_Init();
+
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
   while (1)
   {
+	  loop();
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
@@ -126,7 +134,7 @@ void SystemClock_Config(void)
   RCC_OscInitStruct.HSIState = RCC_HSI_ON;
   RCC_OscInitStruct.PLL.PLLState = RCC_PLL_ON;
   RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_HSE;
-  RCC_OscInitStruct.PLL.PLLMUL = RCC_PLL_MUL6;
+  RCC_OscInitStruct.PLL.PLLMUL = RCC_PLL_MUL9;
   if (HAL_RCC_OscConfig(&RCC_OscInitStruct) != HAL_OK)
   {
     Error_Handler();
@@ -140,12 +148,12 @@ void SystemClock_Config(void)
   RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV2;
   RCC_ClkInitStruct.APB2CLKDivider = RCC_HCLK_DIV1;
 
-  if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_1) != HAL_OK)
+  if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_2) != HAL_OK)
   {
     Error_Handler();
   }
   PeriphClkInit.PeriphClockSelection = RCC_PERIPHCLK_USB;
-  PeriphClkInit.UsbClockSelection = RCC_USBCLKSOURCE_PLL;
+  PeriphClkInit.UsbClockSelection = RCC_USBCLKSOURCE_PLL_DIV1_5;
   if (HAL_RCCEx_PeriphCLKConfig(&PeriphClkInit) != HAL_OK)
   {
     Error_Handler();
@@ -229,9 +237,14 @@ static void MX_GPIO_Init(void)
   __HAL_RCC_GPIOC_CLK_ENABLE();
   __HAL_RCC_GPIOD_CLK_ENABLE();
   __HAL_RCC_GPIOA_CLK_ENABLE();
+  __HAL_RCC_GPIOB_CLK_ENABLE();
 
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(LED_GPIO_Port, LED_Pin, GPIO_PIN_RESET);
+
+  /*Configure GPIO pin Output Level */
+  HAL_GPIO_WritePin(GPIOA, D0_Pin|D1_Pin|D2_Pin|D3_Pin
+                          |D4_Pin|D5_Pin|D6_Pin|D7_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin : LED_Pin */
   GPIO_InitStruct.Pin = LED_Pin;
@@ -244,9 +257,22 @@ static void MX_GPIO_Init(void)
                            D4_Pin D5_Pin D6_Pin D7_Pin */
   GPIO_InitStruct.Pin = D0_Pin|D1_Pin|D2_Pin|D3_Pin
                           |D4_Pin|D5_Pin|D6_Pin|D7_Pin;
-  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
-  GPIO_InitStruct.Pull = GPIO_PULLUP;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
+
+  /*Configure GPIO pins : PR1_Pin PR2_Pin PR3_Pin RI3_Pin
+                           RI4_Pin RI5_Pin RI6_Pin RI7_Pin
+                           RI8_Pin PR4_Pin PR5_Pin PR6_Pin
+                           PR7_Pin PR8_Pin RI1_Pin RI2_Pin */
+  GPIO_InitStruct.Pin = PR1_Pin|PR2_Pin|PR3_Pin|RI3_Pin
+                          |RI4_Pin|RI5_Pin|RI6_Pin|RI7_Pin
+                          |RI8_Pin|PR4_Pin|PR5_Pin|PR6_Pin
+                          |PR7_Pin|PR8_Pin|RI1_Pin|RI2_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
+  GPIO_InitStruct.Pull = GPIO_PULLDOWN;
+  HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
 
 }
 
