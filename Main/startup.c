@@ -48,9 +48,11 @@ void initialize()
 
 	// Init keys
 	for ( int key = 0; key < NUM_KEYS; key++) {
-		keys[key].midi_note = 21 + key;
+		keys[key].midi_note = 24 + key;
 		keys[key].t = 0;
 	}
+
+	memset(banks, 0xff, sizeof(banks));
 
 	HAL_TIM_Base_Start(&htim1);
 
@@ -64,7 +66,7 @@ void trigger(midikey_t *key, event_t event) {
 		key->state = KEY_IS_DOWN;
 		// note pressed
 		midiMessage(MIDI_NOTE_ON, 0, key->midi_note, 127- key->t);
-		printf("ON %d %d\n", key->midi_note, 127- key->t);
+//		printf("ON %d %d\n", key->midi_note, 127- key->t);
 		key->t = 0;
 	} else if (event == KEY_RELEASED) {
 		key->state = KEY_IS_GOING_UP;
@@ -72,7 +74,7 @@ void trigger(midikey_t *key, event_t event) {
 		key->state = KEY_IS_UP;
 		// note released
 		midiMessage(MIDI_NOTE_OFF, 0, key->midi_note, 127- key->t);
-		printf("OFF %d %d\n", key->midi_note, 127- key->t);
+//		printf("OFF %d %d\n", key->midi_note, 127- key->t);
 		key->t = 0;
 	}
 }
@@ -92,6 +94,7 @@ void delay_us (uint16_t us)
 	__HAL_TIM_SET_COUNTER(&htim1,0);  // set the counter value a 0
 	while (__HAL_TIM_GET_COUNTER(&htim1) < us);  // wait for the counter to reach the us input in the parameter
 }
+
 uint32_t IDR[NUM_BANKS];
 void scan() {
 
@@ -102,8 +105,8 @@ void scan() {
 		GPIOA->ODR |= (1<<bank)&0xff; // Selects bottom row
 		delay_us(10); // Debounce
 		IDR[bank] = GPIOB->IDR;
-		banks[bank].top    = IDR[bank] & 0xff;
-		banks[bank].bottom = IDR[bank] >> 8;
+		banks[bank].bottom    = IDR[bank] & 0xff;
+		banks[bank].top = IDR[bank] >> 8;
 		GPIOA->ODR &=  ~((1<<bank)&0xff); // Selects bottom row
 	}
 
@@ -116,9 +119,9 @@ void scan() {
 		diff = banks[bank].top ^ prev_banks[bank].top;
 		if(diff) {
 			for(int key = 0; key < 8; key++) {
-				if(diff & key) {
-					event_t event = banks[bank].top & key ? KEY_UP : KEY_PRESSED;
-					trigger(&keys[bank * 8 + key], event);
+				if(diff & (1<<key)) {
+					event_t event = banks[bank].top & (1<<key) ? KEY_UP : KEY_PRESSED;
+					trigger(&keys[bank + 8 * key], event);
 				}
 			}
 		}
@@ -127,9 +130,9 @@ void scan() {
 		diff = banks[bank].bottom ^ prev_banks[bank].bottom;
 		if(diff) {
 			for(int key = 0; key < 8; key++) {
-				if(diff & key) {
-					event_t event = banks[bank].bottom & key ? KEY_RELEASED : KEY_DOWN;
-					trigger(&keys[bank * 8 + key], event);
+				if(diff & (1<<key)) {
+					event_t event = banks[bank].bottom & (1<<key) ? KEY_DOWN : KEY_RELEASED;
+					trigger(&keys[bank + 8 * key], event);
 				}
 			}
 		}
