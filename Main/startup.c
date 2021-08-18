@@ -1,255 +1,153 @@
 #include "startup.h"
+#include <stdio.h>
 #include <string.h>
 #include <stdint.h>
 #include "Sound/midiMessage.h"
+#include "main.h"
+#include "stm32f1xx_hal_tim.h"
 
-static int firstNote = 53;
+// Possible key states
+typedef enum {
+  KEY_IS_UP,
+  KEY_IS_DOWN,
+  KEY_IS_GOING_UP,    // We increment the timer in this state
+  KEY_IS_GOING_DOWN,  // We increment the timer in this state
+} state_t;
 
-static uint64_t keypadState = 0;
-static uint64_t previousKeypadState = 0;
+// Possible events
+typedef enum {
+  KEY_PRESSED,    // Key is pressed
+  KEY_DOWN,       // Key reached bottom
+  KEY_RELEASED,   // Key was released
+  KEY_UP,         // Key reached top
+} event_t;
 
-uint64_t GetKeypadState();
+typedef struct {
+  char			midi_note	:8;
+  state_t       state		:4; // Bit fields
+  unsigned int  t    		:7; // Lines up nicely to 16bits, t overflows at 4096
+} midikey_t;
+
+typedef struct {
+  uint8_t top;
+  uint8_t bottom;
+} bank_t;
+#define NUM_KEYS 61
+
+midikey_t keys[NUM_KEYS];
+
+#define NUM_BANKS 8
+
+// For scanning banks
+bank_t banks[NUM_BANKS];
+bank_t prev_banks[NUM_BANKS];
 
 void initialize()
 {
+	printf("%s\n", __func__);
+
+	// Init keys
+	for ( int key = 0; key < NUM_KEYS; key++) {
+		keys[key].midi_note = 21 + key;
+		keys[key].t = 0;
+	}
+
+	HAL_TIM_Base_Start(&htim1);
+
 }
 
-void setup()
-{
+void trigger(midikey_t *key, event_t event) {
+	if(event == KEY_PRESSED) {
+		key->state = KEY_IS_GOING_DOWN;
+
+	} else if (event == KEY_DOWN) {
+		key->state = KEY_IS_DOWN;
+		// note pressed
+		midiMessage(MIDI_NOTE_ON, 0, key->midi_note, 127- key->t);
+		printf("ON %d %d\n", key->midi_note, 127- key->t);
+		key->t = 0;
+	} else if (event == KEY_RELEASED) {
+		key->state = KEY_IS_GOING_UP;
+	} else if ( event == KEY_UP) {
+		key->state = KEY_IS_UP;
+		// note released
+		midiMessage(MIDI_NOTE_OFF, 0, key->midi_note, 127- key->t);
+		printf("OFF %d %d\n", key->midi_note, 127- key->t);
+		key->t = 0;
+	}
 }
 
-void loop()
+void increment() {
+	// Advance timers
+	for(int key = 0; key < NUM_KEYS; key++) {
+		state_t state = keys[key].state;
+		if(state == KEY_IS_GOING_UP || state == KEY_IS_GOING_DOWN) {
+			keys[key].t++;
+		}
+	}
+}
+
+void delay_us (uint16_t us)
 {
-	keypadState = GetKeypadState();
-	if (keypadState != previousKeypadState)
-	{
-		for (int note = 0; note < 37; note++)
-		{
-			uint64_t noteBit = (uint64_t) 1 << note;
-			if ((keypadState & noteBit) != (previousKeypadState & noteBit))
-			{
-				if ((keypadState & noteBit) == 0)
-				{
-					// note released
-					midiMessage(MIDI_NOTE_OFF, 0, firstNote + note, 0);
-				}
-				else
-				{
-					// note pressed
-					midiMessage(MIDI_NOTE_ON, 0, firstNote + note, 100);
+	__HAL_TIM_SET_COUNTER(&htim1,0);  // set the counter value a 0
+	while (__HAL_TIM_GET_COUNTER(&htim1) < us);  // wait for the counter to reach the us input in the parameter
+}
+uint32_t IDR[NUM_BANKS];
+void scan() {
+
+	// Scan and store
+	for(int bank = 0; bank < NUM_BANKS; bank++) {
+		prev_banks[bank] = banks[bank]; // Store previous state so we can look for changes
+
+		GPIOA->ODR |= (1<<bank)&0xff; // Selects bottom row
+		delay_us(10); // Debounce
+		IDR[bank] = GPIOB->IDR;
+		banks[bank].top    = IDR[bank] & 0xff;
+		banks[bank].bottom = IDR[bank] >> 8;
+		GPIOA->ODR &=  ~((1<<bank)&0xff); // Selects bottom row
+	}
+
+	// Process
+	for(int bank = 0; bank < NUM_BANKS; bank++) {
+
+		uint8_t diff;
+
+		// Check top switches and fire events
+		diff = banks[bank].top ^ prev_banks[bank].top;
+		if(diff) {
+			for(int key = 0; key < 8; key++) {
+				if(diff & key) {
+					event_t event = banks[bank].top & key ? KEY_UP : KEY_PRESSED;
+					trigger(&keys[bank * 8 + key], event);
 				}
 			}
 		}
 
-		previousKeypadState = keypadState;
-	}
-}
-
-uint8_t GetRowState(GPIO_TypeDef* gpio, uint16_t pin)
-{
-	HAL_GPIO_WritePin(gpio, pin, GPIO_PIN_SET);
-
-	uint32_t oldResult = 0;
-	uint32_t result = 0;
-	uint8_t sameResultCount = 5;
-	uint8_t allResultCount = 10;
-	while (sameResultCount > 0 && allResultCount > 0)
-	{
-		result = GPIOB->IDR & (GPIO_PIN_4|GPIO_PIN_5|GPIO_PIN_6|GPIO_PIN_7|GPIO_PIN_8); // B4,B5,B6,B7,B8
-		if (oldResult == result)
-		{
-			sameResultCount--;
-		}
-		else
-		{
-			sameResultCount = 5;
-			oldResult = result;
+		// Check bottom switches and fire events
+		diff = banks[bank].bottom ^ prev_banks[bank].bottom;
+		if(diff) {
+			for(int key = 0; key < 8; key++) {
+				if(diff & key) {
+					event_t event = banks[bank].bottom & key ? KEY_RELEASED : KEY_DOWN;
+					trigger(&keys[bank * 8 + key], event);
+				}
+			}
 		}
 
-		allResultCount--;
 	}
 
-	HAL_GPIO_WritePin(gpio, pin, GPIO_PIN_RESET);
-
-	return (uint8_t)(result >> 4);
 }
 
-uint64_t GetColumnState(GPIO_TypeDef* gpio, uint16_t pin)
+void loop()
 {
-	HAL_GPIO_WritePin(gpio, pin, GPIO_PIN_SET);
-
-	uint64_t oldResult = 0;
-	uint64_t result = 0;
-	uint8_t sameResultCount = 5;
-	uint8_t allResultCount = 10;
-	uint32_t resultA;
-	uint32_t resultB;
-	while (sameResultCount > 0 && allResultCount > 0)
-	{
-		resultA = GPIOA->IDR & (GPIO_PIN_8|GPIO_PIN_9|GPIO_PIN_10); // A8,A9,A10
-		resultB = GPIOB->IDR & (GPIO_PIN_9
-				|GPIO_PIN_12|GPIO_PIN_13|GPIO_PIN_14|GPIO_PIN_14);  // B9,B12,B13,B14,B15
-		result = 0;
-		if (resultB & GPIO_PIN_9)
-		{
-			result |= 1;
-		}
-		if (resultA & GPIO_PIN_10)
-		{
-			result |= 1 << 5;
-		}
-		if (resultA & GPIO_PIN_9)
-		{
-			result |= 1 << 10;
-		}
-		if (resultA & GPIO_PIN_8)
-		{
-			result |= 1 << 15;
-		}
-		if (resultB & GPIO_PIN_15)
-		{
-			result |= 1 << 20;
-		}
-		if (resultB & GPIO_PIN_14)
-		{
-			result |= 1 << 25;
-		}
-		if (resultB & GPIO_PIN_13)
-		{
-			result |= 1 << 30;
-		}
-		if (resultB & GPIO_PIN_12)
-		{
-			result |= (uint64_t)1 << 35;
-		}
-
-		if (oldResult == result)
-		{
-			sameResultCount--;
-		}
-		else
-		{
-			sameResultCount = 5;
-			oldResult = result;
-		}
-
-		allResultCount--;
+	static uint32_t oldTick = 0;
+	scan();
+	increment();
+	if(HAL_GetTick() - oldTick >= 1000) {
+		oldTick = HAL_GetTick();
+		HAL_GPIO_TogglePin(LED_GPIO_Port, LED_Pin);
 	}
 
-	HAL_GPIO_WritePin(gpio, pin, GPIO_PIN_RESET);
-
-	return result;
+	//	   footpedal();
 }
 
-uint64_t GetKeypadStateByRow()
-{
-	GPIO_InitTypeDef GPIO_InitStruct = {0};
-
-	/* Configure GPIO pins : PB9 PB12 PB13 PB14 PB15 */
-	GPIO_InitStruct.Pin = GPIO_PIN_9|GPIO_PIN_12|GPIO_PIN_13|GPIO_PIN_14|GPIO_PIN_15;
-	GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
-	GPIO_InitStruct.Pull = GPIO_PULLDOWN;
-	GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_MEDIUM;
-	HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
-
-	/* Configure GPIO pins : PA8 PA9 PA10 */
-	GPIO_InitStruct.Pin = GPIO_PIN_8|GPIO_PIN_9|GPIO_PIN_10;
-	GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
-	GPIO_InitStruct.Pull = GPIO_PULLDOWN;
-	GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_MEDIUM;
-	HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
-
-	/* Configure GPIO pins : PB4 PB5 PB6 PB7 PB8 */
-	GPIO_InitStruct.Pin = GPIO_PIN_4|GPIO_PIN_5|GPIO_PIN_6|GPIO_PIN_7|GPIO_PIN_8;
-	GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
-	GPIO_InitStruct.Pull = GPIO_PULLDOWN;
-	HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
-
-	uint64_t result = 0;
-	uint8_t rowState;
-
-	rowState = GetRowState(GPIOB, GPIO_PIN_12);
-	result |= rowState;
-	result <<= 5;
-
-	rowState = GetRowState(GPIOB, GPIO_PIN_13);
-	result |= rowState;
-	result <<= 5;
-
-	rowState = GetRowState(GPIOB, GPIO_PIN_14);
-	result |= rowState;
-	result <<= 5;
-
-	rowState = GetRowState(GPIOB, GPIO_PIN_15);
-	result |= rowState;
-	result <<= 5;
-
-	rowState = GetRowState(GPIOA, GPIO_PIN_8);
-	result |= rowState;
-	result <<= 5;
-
-	rowState = GetRowState(GPIOA, GPIO_PIN_9);
-	result |= rowState;
-	result <<= 5;
-
-	rowState = GetRowState(GPIOA, GPIO_PIN_10);
-	result |= rowState;
-	result <<= 5;
-
-	rowState = GetRowState(GPIOB, GPIO_PIN_9);
-	result |= rowState;
-
-	return result;
-}
-
-uint64_t GetKeypadStateByColumn()
-{
-	GPIO_InitTypeDef GPIO_InitStruct = {0};
-
-	/* Configure GPIO pins : PB9 PB12 PB13 PB14 PB15 */
-	GPIO_InitStruct.Pin = GPIO_PIN_9|GPIO_PIN_12|GPIO_PIN_13|GPIO_PIN_14|GPIO_PIN_15;
-	GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
-	GPIO_InitStruct.Pull = GPIO_PULLDOWN;
-	HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
-
-	/* Configure GPIO pins : PA8 PA9 PA10 */
-	GPIO_InitStruct.Pin = GPIO_PIN_8|GPIO_PIN_9|GPIO_PIN_10;
-	GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
-	GPIO_InitStruct.Pull = GPIO_PULLDOWN;
-	HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
-
-	/* Configure GPIO pins : PB4 PB5 PB6 PB7 PB8 */
-	GPIO_InitStruct.Pin = GPIO_PIN_4|GPIO_PIN_5|GPIO_PIN_6|GPIO_PIN_7|GPIO_PIN_8;
-	GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
-	GPIO_InitStruct.Pull = GPIO_PULLDOWN;
-	GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_MEDIUM;
-	HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
-
-	uint64_t result = 0;
-	uint64_t columnState;
-
-	columnState = GetColumnState(GPIOB, GPIO_PIN_4);
-	result |= columnState;
-
-	columnState = GetColumnState(GPIOB, GPIO_PIN_5);
-	result |= columnState << 1;
-
-	columnState = GetColumnState(GPIOB, GPIO_PIN_6);
-	result |= columnState << 2;
-
-	columnState = GetColumnState(GPIOB, GPIO_PIN_7);
-	result |= columnState << 3;
-
-	columnState = GetColumnState(GPIOB, GPIO_PIN_8);
-	result |= columnState << 4;
-
-	return result;
-}
-
-uint64_t GetKeypadState()
-{
-	uint64_t resultByRow = GetKeypadStateByRow();
-	uint64_t resultByColumn = GetKeypadStateByColumn();
-
-	return resultByRow | resultByColumn;
-}
