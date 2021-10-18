@@ -55,7 +55,7 @@ void initialize()
 	memset(banks, 0xff, sizeof(banks));
 
 	HAL_TIM_Base_Start(&htim1);
-
+	HAL_TIM_Base_Start_IT(&htim2);
 }
 
 void trigger(midikey_t *key, event_t event) {
@@ -141,16 +141,17 @@ void scan() {
 
 }
 
+void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef* htim) {
+
+	if (htim->Instance == TIM2) {
+		scan();
+		increment();
+		//		footpedal();
+	}
+}
+
 void loop()
 {
-	static uint32_t oldTick = 0;
-	scan();
-	increment();
-	if(HAL_GetTick() - oldTick >= 1000) {
-		oldTick = HAL_GetTick();
-		HAL_GPIO_TogglePin(LED_GPIO_Port, LED_Pin);
-	}
 
-	//	   footpedal();
 }
 
