@@ -52,7 +52,11 @@ void initialize()
 		keys[key].t = 0;
 	}
 
-	memset(banks, 0xff, sizeof(banks));
+	for(int i = 0; i< NUM_BANKS; i++) {
+		banks[i].top = 0;
+		banks[i].bottom = 1;
+	}
+	memcpy(prev_banks, banks, sizeof(prev_banks));
 
 	HAL_TIM_Base_Start(&htim1);
 	HAL_TIM_Base_Start_IT(&htim2);
@@ -61,21 +65,32 @@ void initialize()
 void trigger(midikey_t *key, event_t event) {
 	if(event == KEY_PRESSED) {
 		key->state = KEY_IS_GOING_DOWN;
+		HAL_GPIO_WritePin(LED_GPIO_Port, LED_Pin, GPIO_PIN_RESET);
+		printf("GOING DOWN %d\n", key->midi_note);
 
 	} else if (event == KEY_DOWN) {
-		key->state = KEY_IS_DOWN;
-		// note pressed
-		midiMessage(MIDI_NOTE_ON, 0, key->midi_note, 127- key->t);
-//		printf("ON %d %d\n", key->midi_note, 127- key->t);
-		key->t = 0;
+		if(key->state == KEY_IS_GOING_DOWN) {
+			key->state = KEY_IS_DOWN;
+			HAL_GPIO_WritePin(LED_GPIO_Port, LED_Pin, GPIO_PIN_RESET);
+			// note pressed
+			midiMessage(MIDI_NOTE_ON, 1, key->midi_note, 127- key->t);
+			printf("DN %d %d\n", key->midi_note, 127- key->t);
+			key->t = 0;
+		}
 	} else if (event == KEY_RELEASED) {
 		key->state = KEY_IS_GOING_UP;
+		HAL_GPIO_WritePin(LED_GPIO_Port, LED_Pin, GPIO_PIN_RESET);
+		printf("GOING UP %d\n", key->midi_note);
+
 	} else if ( event == KEY_UP) {
-		key->state = KEY_IS_UP;
-		// note released
-		midiMessage(MIDI_NOTE_OFF, 0, key->midi_note, 127- key->t);
-//		printf("OFF %d %d\n", key->midi_note, 127- key->t);
-		key->t = 0;
+		if(key->state == KEY_IS_GOING_UP) {
+			key->state = KEY_IS_UP;
+			HAL_GPIO_WritePin(LED_GPIO_Port, LED_Pin, GPIO_PIN_SET);
+			// note released
+			midiMessage(MIDI_NOTE_OFF, 1, key->midi_note, 127- key->t);
+			printf("UP %d %d\n", key->midi_note, 127- key->t);
+			key->t = 0;
+		}
 	}
 }
 
@@ -84,7 +99,7 @@ void increment() {
 	for(int key = 0; key < NUM_KEYS; key++) {
 		state_t state = keys[key].state;
 		if(state == KEY_IS_GOING_UP || state == KEY_IS_GOING_DOWN) {
-			keys[key].t++;
+			if(keys[key].t < 126) keys[key].t++;
 		}
 	}
 }
@@ -95,18 +110,38 @@ void delay_us (uint16_t us)
 	while (__HAL_TIM_GET_COUNTER(&htim1) < us);  // wait for the counter to reach the us input in the parameter
 }
 
-uint32_t IDR[NUM_BANKS];
-void scan() {
+uint32_t deb[NUM_BANKS];
+void scan(void) {
+	uint8_t count[16];
+	uint32_t val[3];
+	int i;
 
 	// Scan and store
 	for(int bank = 0; bank < NUM_BANKS; bank++) {
 		prev_banks[bank] = banks[bank]; // Store previous state so we can look for changes
 
 		GPIOA->ODR |= (1<<bank)&0xff; // Selects bottom row
-		delay_us(10); // Debounce
-		IDR[bank] = GPIOB->IDR;
-		banks[bank].bottom    = IDR[bank] & 0xff;
-		banks[bank].top = IDR[bank] >> 8;
+		delay_us(10); // wait voltage stabilize
+		for (i=0; i<3; i++) {
+			val[i] = GPIOB->IDR;
+			delay_us(10); // wait voltage stabilize
+		}
+
+		for (i=0; i<16; i++) {
+			count[i] = 0;
+			if(val[0] & 1<<i) ++count[i];
+			if(val[1] & 1<<i) ++count[i];
+			if(val[2] & 1<<i) ++count[i];
+			if(count[i] == 3) {
+				deb[bank] |= (1<<i);
+			}
+			else {
+				deb[bank] &= ~(1<<i);
+			}
+		}
+
+		banks[bank].bottom = deb[bank] & 0xff;
+		banks[bank].top    = deb[bank] >> 8;
 		GPIOA->ODR &=  ~((1<<bank)&0xff); // Selects bottom row
 	}
 

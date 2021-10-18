@@ -86,6 +86,7 @@ static uint8_t USBD_MIDI_Init(USBD_HandleTypeDef *pdev, uint8_t cfgidx)
 {
 	uint8_t ret = 0U;
 	USBD_MIDI_HandleTypeDef *hcdc;
+	UNUSED(cfgidx);
 
 	if (pdev->dev_speed == USBD_SPEED_HIGH)
 	{
@@ -163,6 +164,7 @@ static uint8_t USBD_MIDI_Init(USBD_HandleTypeDef *pdev, uint8_t cfgidx)
 static uint8_t USBD_MIDI_DeInit(USBD_HandleTypeDef *pdev, uint8_t cfgidx)
 {
 	uint8_t ret = 0U;
+	UNUSED(cfgidx);
 
 	/* Close EP IN */
 	USBD_LL_CloseEP(pdev, MIDI_IN_EP);
