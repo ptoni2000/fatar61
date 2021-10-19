@@ -2,9 +2,9 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdint.h>
-#include "Sound/midiMessage.h"
 #include "main.h"
 #include "stm32f1xx_hal_tim.h"
+#include "usbd_midi_if.h"
 
 // Possible key states
 typedef enum {
@@ -73,7 +73,7 @@ void trigger(midikey_t *key, event_t event) {
 			key->state = KEY_IS_DOWN;
 			HAL_GPIO_WritePin(LED_GPIO_Port, LED_Pin, GPIO_PIN_RESET);
 			// note pressed
-			midiMessage(MIDI_NOTE_ON, 1, key->midi_note, 127- key->t);
+			MIDI_note_on(key->midi_note, 127- key->t);
 			printf("DN %d %d\n", key->midi_note, 127- key->t);
 			key->t = 0;
 		}
@@ -87,7 +87,7 @@ void trigger(midikey_t *key, event_t event) {
 			key->state = KEY_IS_UP;
 			HAL_GPIO_WritePin(LED_GPIO_Port, LED_Pin, GPIO_PIN_SET);
 			// note released
-			midiMessage(MIDI_NOTE_OFF, 1, key->midi_note, 127- key->t);
+			MIDI_note_off(key->midi_note, 127- key->t);
 			printf("UP %d %d\n", key->midi_note, 127- key->t);
 			key->t = 0;
 		}
