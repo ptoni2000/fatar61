@@ -91,7 +91,7 @@ void USB_DEVICE_MasterHardReset(void) {
 	GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
 	HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 	HAL_GPIO_WritePin(GPIOA, GPIO_PIN_12, GPIO_PIN_RESET);
-	HAL_Delay(5);
+	HAL_Delay(500);
 
 	/* USER CODE END USB_MspInit 0 */
 
@@ -139,6 +139,7 @@ int main(void)
   MX_USART1_UART_Init();
   MX_TIM1_Init();
   MX_TIM2_Init();
+  USB_DEVICE_MasterHardReset();
   MX_USB_DEVICE_Init();
   /* USER CODE BEGIN 2 */
 

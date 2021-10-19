@@ -74,6 +74,7 @@ static int8_t MIDI_Init(USBD_HandleTypeDef *pdev, uint8_t cfgidx)
   /*
      Add your initialization code here
   */
+	printf("%s\n", __func__);
   return (0);
 }
 
@@ -88,6 +89,7 @@ static int8_t MIDI_DeInit(USBD_HandleTypeDef *pdev, uint8_t cfgidx)
   /*
      Add your deinitialization code here
   */
+
   return (0);
 }
 
@@ -138,11 +140,9 @@ static int8_t MIDI_Receive (uint8_t* buffer, uint32_t length)
   return (0);
 }
 
-uint8_t channel = 1;
-
 void MIDI_note_on(uint8_t note, uint8_t velocity) {
-uint8_t b[4];
-    b[0] = channel;
+    uint8_t b[4];
+    b[0] = 0x0B;
     b[1] = 0x90;
     b[2] = note;
     b[3] = velocity;
@@ -153,7 +153,7 @@ uint8_t b[4];
 
 void MIDI_note_off(uint8_t note, uint8_t velocity) {
     uint8_t b[4];
-    b[0] = channel;
+    b[0] = 0x0B;
     b[1] = 0x80;
     b[2] = note;
     b[3] = velocity;
@@ -164,7 +164,7 @@ void MIDI_note_off(uint8_t note, uint8_t velocity) {
 
 void MIDI_cc_update(uint8_t channel , uint8_t controler_number, uint8_t controller_value) {
     uint8_t b[4];
-    b[0] = channel;
+    b[0] = 0x0B;
     b[1] = 0xB0 | channel;
     b[2] = controler_number;
     b[3] = controller_value;
