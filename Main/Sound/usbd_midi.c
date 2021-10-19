@@ -470,11 +470,12 @@ uint8_t USBD_MIDI_TransmitPacket(USBD_HandleTypeDef *pdev)
 			/* Transmit next packet */
 			USBD_LL_Transmit(pdev, MIDI_IN_EP, hcdc->TxBuffer,
 					(uint16_t) hcdc->TxLength);
-
+			printf("OK\n");
 			return USBD_OK;
 		}
 		else
 		{
+			printf("BUSY\n");
 			return USBD_BUSY;
 		}
 	}

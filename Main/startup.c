@@ -179,7 +179,7 @@ void scan(void) {
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef* htim) {
 
 	if (htim->Instance == TIM2) {
-		scan();
+		//scan();
 		increment();
 		//		footpedal();
 	}
@@ -187,6 +187,6 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef* htim) {
 
 void loop()
 {
-
+	scan();
 }
 
