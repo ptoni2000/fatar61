@@ -26,9 +26,10 @@ extern USBD_MIDI_ItfTypeDef  USBD_MIDI_fops;
 /* Exported macro ------------------------------------------------------------*/
 /* Exported functions ------------------------------------------------------- */
 
-void MIDI_note_on(uint8_t note, uint8_t velocity);
-void MIDI_note_off(uint8_t note, uint8_t velocity);
+void MIDI_note_on(uint8_t channel ,uint8_t note, uint8_t velocity);
+void MIDI_note_off(uint8_t channel ,uint8_t note, uint8_t velocity);
 void MIDI_cc_update(uint8_t channel , uint8_t controler_number, uint8_t controller_value);
+void MIDI_pc_update(uint8_t channel , uint8_t program);
 
 #ifdef __cplusplus
 }

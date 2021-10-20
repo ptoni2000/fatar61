@@ -24,8 +24,8 @@
 #include "usb_device.h"
 #include "usbd_core.h"
 #include "usbd_desc.h"
-#include "usbd_audio.h"
-#include "usbd_audio_if.h"
+#include "usbd_midi.h"
+#include "usbd_midi_if.h"
 
 /* USER CODE BEGIN Includes */
 
@@ -55,6 +55,31 @@ USBD_HandleTypeDef hUsbDeviceFS;
  * -- Insert your external function declaration here --
  */
 /* USER CODE BEGIN 1 */
+/*pull down the USB RP pin to let think of master that device have been disconnect and force new device identification when calling MX_USB_DEVICE_Init() */
+void USB_DEVICE_MasterHardReset(void) {
+	GPIO_InitTypeDef GPIO_InitStruct;
+
+	GPIO_InitStruct.Pin = GPIO_PIN_12;
+	GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+	GPIO_InitStruct.Pull = GPIO_NOPULL;
+	GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
+	HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
+	HAL_GPIO_WritePin(GPIOA, GPIO_PIN_12, GPIO_PIN_RESET);
+	HAL_Delay(500);
+
+	/* USER CODE END USB_MspInit 0 */
+
+	/**USB GPIO Configuration
+	    PA11     ------> USB_DM
+	    PA12     ------> USB_DP
+	 */
+	GPIO_InitStruct.Pin = /*GPIO_PIN_11|*/GPIO_PIN_12;
+	GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
+	GPIO_InitStruct.Pull = GPIO_NOPULL;
+	GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
+	//GPIO_InitStruct.Alternate = GPIO_AF0_LPTIM 14_USB;
+	HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
+}
 
 /* USER CODE END 1 */
 
@@ -65,7 +90,7 @@ USBD_HandleTypeDef hUsbDeviceFS;
 void MX_USB_DEVICE_Init(void)
 {
   /* USER CODE BEGIN USB_DEVICE_Init_PreTreatment */
-
+	USB_DEVICE_MasterHardReset();
   /* USER CODE END USB_DEVICE_Init_PreTreatment */
 
   /* Init Device Library, add supported class and start the library. */
@@ -73,11 +98,11 @@ void MX_USB_DEVICE_Init(void)
   {
     Error_Handler();
   }
-  if (USBD_RegisterClass(&hUsbDeviceFS, &USBD_AUDIO) != USBD_OK)
+  if (USBD_RegisterClass(&hUsbDeviceFS, &USBD_MIDI) != USBD_OK)
   {
     Error_Handler();
   }
-  if (USBD_AUDIO_RegisterInterface(&hUsbDeviceFS, &USBD_AUDIO_fops_FS) != USBD_OK)
+  if (USBD_MIDI_RegisterInterface(&hUsbDeviceFS, &USBD_MIDI_fops) != USBD_OK)
   {
     Error_Handler();
   }

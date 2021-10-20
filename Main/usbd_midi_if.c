@@ -140,10 +140,10 @@ static int8_t MIDI_Receive (uint8_t* buffer, uint32_t length)
   return (0);
 }
 
-void MIDI_note_on(uint8_t note, uint8_t velocity) {
+void MIDI_note_on(uint8_t channel , uint8_t note, uint8_t velocity) {
     uint8_t b[4];
     b[0] = 0x0B;
-    b[1] = 0x90;
+    b[1] = 0x90 | channel;
     b[2] = note;
     b[3] = velocity;
 
@@ -151,10 +151,10 @@ void MIDI_note_on(uint8_t note, uint8_t velocity) {
 
 }
 
-void MIDI_note_off(uint8_t note, uint8_t velocity) {
+void MIDI_note_off(uint8_t channel ,uint8_t note, uint8_t velocity) {
     uint8_t b[4];
     b[0] = 0x0B;
-    b[1] = 0x80;
+    b[1] = 0x80 | channel;
     b[2] = note;
     b[3] = velocity;
 
@@ -168,6 +168,17 @@ void MIDI_cc_update(uint8_t channel , uint8_t controler_number, uint8_t controll
     b[1] = 0xB0 | channel;
     b[2] = controler_number;
     b[3] = controller_value;
+
+    MIDI_Send(b, 4);
+
+}
+
+void MIDI_pc_update(uint8_t channel , uint8_t program) {
+    uint8_t b[4];
+    b[0] = 0x0C;
+    b[1] = 0xC0 | channel;
+    b[2] = program;
+    b[3] = 0;
 
     MIDI_Send(b, 4);
 

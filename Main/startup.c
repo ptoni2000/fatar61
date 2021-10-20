@@ -41,6 +41,7 @@ midikey_t keys[NUM_KEYS];
 // For scanning banks
 bank_t banks[NUM_BANKS];
 bank_t prev_banks[NUM_BANKS];
+uint8_t program = 0;
 
 void initialize()
 {
@@ -58,8 +59,11 @@ void initialize()
 	}
 	memcpy(prev_banks, banks, sizeof(prev_banks));
 
-	HAL_TIM_Base_Start(&htim1);
+//	HAL_TIM_Base_Start(&htim1);
+	HAL_TIM_Encoder_Start(&htim1, TIM_CHANNEL_ALL);
 	HAL_TIM_Base_Start_IT(&htim2);
+	HAL_GPIO_WritePin(LED_GPIO_Port, LED_Pin, GPIO_PIN_RESET);
+
 }
 
 void trigger(midikey_t *key, event_t event) {
@@ -73,7 +77,7 @@ void trigger(midikey_t *key, event_t event) {
 			key->state = KEY_IS_DOWN;
 			HAL_GPIO_WritePin(LED_GPIO_Port, LED_Pin, GPIO_PIN_RESET);
 			// note pressed
-			MIDI_note_on(key->midi_note, 127- key->t);
+			MIDI_note_on(1, key->midi_note, 127- key->t);
 			printf("DN %d %d\n", key->midi_note, 127- key->t);
 			key->t = 0;
 		}
@@ -87,7 +91,7 @@ void trigger(midikey_t *key, event_t event) {
 			key->state = KEY_IS_UP;
 			HAL_GPIO_WritePin(LED_GPIO_Port, LED_Pin, GPIO_PIN_SET);
 			// note released
-			MIDI_note_off(key->midi_note, 127- key->t);
+			MIDI_note_off(1, key->midi_note, 127- key->t);
 			printf("UP %d %d\n", key->midi_note, 127- key->t);
 			key->t = 0;
 		}
@@ -104,10 +108,26 @@ void increment() {
 	}
 }
 
-void delay_us (uint16_t us)
+//void delay_us (uint16_t us)
+//{
+//	__HAL_TIM_SET_COUNTER(&htim1,0);  // set the counter value a 0
+//	while (__HAL_TIM_GET_COUNTER(&htim1) < us);  // wait for the counter to reach the us input in the parameter
+//}
+
+void delay_us(uint32_t delay_us)
 {
-	__HAL_TIM_SET_COUNTER(&htim1,0);  // set the counter value a 0
-	while (__HAL_TIM_GET_COUNTER(&htim1) < us);  // wait for the counter to reach the us input in the parameter
+  volatile unsigned int num;
+  volatile unsigned int t;
+
+
+  for (num = 0; num < delay_us; num++)
+  {
+    t = 11;
+    while (t != 0)
+    {
+      t--;
+    }
+  }
 }
 
 uint32_t deb[NUM_BANKS];
@@ -176,17 +196,40 @@ void scan(void) {
 
 }
 
+void encoder(void)
+{
+	uint32_t encoder_val;
+	static uint32_t old_encoder = 0;
+	static uint32_t now = 0;
+	static int update = 0;
+
+	encoder_val = (TIM1->CNT)>>2;
+
+	if(old_encoder != encoder_val) {
+		now = HAL_GetTick();
+		update = 1;
+		old_encoder = encoder_val;
+	}
+
+	if(HAL_GetTick() - now > 200 && update) {
+		program = encoder_val % 127;
+		MIDI_pc_update(1, program);
+		update = 0;
+	}
+
+}
+
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef* htim) {
 
 	if (htim->Instance == TIM2) {
 		//scan();
 		increment();
-		//		footpedal();
 	}
 }
 
 void loop()
 {
 	scan();
+	encoder();
 }
 
