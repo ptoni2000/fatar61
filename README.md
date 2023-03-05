@@ -9,3 +9,5 @@ Eagle directory contain schematic and pcb
 Documentation contain some photos and videos of the board, box and cable
 
 The keyboard is working wery well when connected to minisynt32: https://github.com/grantek/minisynth32
+
+# NOTE: the actual firmware is on repository fatar61_tinyUSB !!!
